@@ -72,9 +72,9 @@ async def leaveGame(isLeader: bool):
 
     leave_match = await wait_for_image(PATHS["leave"], confidence=0.7, timeout=25, dontRestart=not isLeader, dontReport=isLeader)
 
-    if isLeader:
-            bots = config.json_config["followers"]
-            asyncio.create_task(notify_bots(bots, config.webhookURL))
+    # if isLeader:
+    #         bots = config.json_config["followers"]
+    #         asyncio.create_task(notify_bots(bots, config.webhookURL))
 
     pyautogui.click(leave_match)
 
@@ -224,20 +224,20 @@ async def verifyInviteParty(webhookURL: str):
             await asyncio.sleep(1)
             press("esc")
 
-            bots = config.json_config["followers"]
+            # bots = config.json_config["followers"]
 
-            press("o")
+            # press("o")
          
-            for bot in bots:
-                await asyncio.sleep(2)
-                press("1")  
-                type_string(bot["id"])
-                search_button = await wait_for_image(PATHS["search_players"], confidence=0.7)
-                pyautogui.click(search_button)
-                await inviteToParty(webhookURL, bot["id"], bot["ip"])
-                press('esc')
+            # for bot in bots:
+            #     await asyncio.sleep(2)
+            #     press("1")  
+            #     type_string(bot["id"])
+            #     search_button = await wait_for_image(PATHS["search_players"], confidence=0.7)
+            #     pyautogui.click(search_button)
+            #     await inviteToParty(webhookURL, bot["id"], bot["ip"])
+            #     press('esc')
             
-            press('esc')
+            # press('esc')
             press('esc')
 
             queue = await wait_for_image(PATHS["queue"], confidence=0.7, timeout=15)
