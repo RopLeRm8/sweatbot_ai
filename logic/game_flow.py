@@ -6,38 +6,13 @@ from pydirectinput import press, keyDown, keyUp
 from logic.discord import send_discord_log
 from logic.ocr import detect_error_detail, wait_for_image
 from logic.paths import PATHS
-from logic.api import sendError,finishBot
+from logic.api import sendError, finishBot
 import logic.config as config
-from logic.utils import reset
 import requests
 import aiohttp
 import time
 
 start_time = None
-
-def type_string(text: str):
-    for char in text:
-        if char.isupper():
-            pyautogui.keyDown('shift')
-            pyautogui.press(char.lower())
-            pyautogui.keyUp('shift')
-
-        elif char == ' ':
-            pyautogui.press('space')
-
-        elif char == '#': 
-            pyautogui.keyDown('alt')  
-            pyautogui.keyDown('ctrl') 
-            pyautogui.press('3')
-            pyautogui.keyUp('ctrl')
-            pyautogui.keyUp('alt')
-
-        elif char.isalnum():
-            pyautogui.press(char)
-
-        else:
-            pyautogui.typewrite(char)
-        time.sleep(0.1)
 
 def type_string(text: str): 
     for char in text: 
@@ -48,12 +23,15 @@ def type_string(text: str):
         elif char == ' ': 
             press('space') 
         elif char == '#': 
-            keyDown('shift') 
+            keyDown('shift')
             press('3') 
             keyUp('shift') 
+        elif char == '-':
+            press('minus')  
         elif char.isalnum(): 
             press(char) 
         time.sleep(0.1)
+
 
 async def notify_bots(bots, webhook_url):
     async with aiohttp.ClientSession() as session:
@@ -71,17 +49,20 @@ async def leaveGame(isLeader: bool):
         await asyncio.sleep(3)
 
     leave_match = await wait_for_image(PATHS["leave"], confidence=0.7, timeout=25, dontRestart=not isLeader, dontReport=isLeader)
+    if not leave_match: return
 
-    # if isLeader:
-    #         bots = config.json_config["followers"]
-    #         asyncio.create_task(notify_bots(bots, config.webhookURL))
+    if isLeader:
+        bots = config.json_config["followers"]
+        asyncio.create_task(notify_bots(bots, config.webhookURL))
 
     pyautogui.click(leave_match)
 
     if not isLeader:
         leave_match_confirm = await wait_for_image(PATHS["leave_confirm_notleader"], confidence=0.7, timeout=25, dontReport=True)
+        if not leave_match_confirm: return
     else:
         leave_match_confirm = await wait_for_image(PATHS["leave_confirm"], confidence=0.7, timeout=25)
+        if not leave_match_confirm: return
 
     await asyncio.sleep(5)
     pyautogui.moveTo(leave_match_confirm)
@@ -117,43 +98,50 @@ async def verifyPreLobby(webhookURL: str):
         timeout -= 5
         if timeout <= 0:
             send_discord_log(webhookURL, "Bot instance didn't load into the match on time, session cancelled.")
-            sendError(config.json_config["self_ip"])
+            await sendError(config.json_config["self_ip"])
             break
 
 
 async def verifyIfSearching(webhookURL: str):
     await asyncio.sleep(1)
 
-    while (True):
+    while True:
         await asyncio.sleep(2)
         searching = await wait_for_image(PATHS["searching"], confidence=0.7, timeout=2, dontRestart=True)
         if searching:
             send_discord_log(webhookURL, "Queue started.")
             break
-        cancel_button =  await wait_for_image(PATHS["cancel_search"], confidence=0.7, timeout=6)
+
+        cancel_button = await wait_for_image(PATHS["cancel_search"], confidence=0.7, timeout=6)
+        if not cancel_button: return
         pyautogui.moveTo(cancel_button)
         await asyncio.sleep(1)
         pyautogui.click(cancel_button)
         await asyncio.sleep(1)
+
         confirm_cancel = await wait_for_image(PATHS["confirm_cancel_search"], confidence=0.7, timeout=6)
+        if not confirm_cancel: return
         pyautogui.moveTo(confirm_cancel)
         await asyncio.sleep(1)
         pyautogui.click(confirm_cancel)
 
-
         queue = await wait_for_image(PATHS["queue"], confidence=0.7, timeout=15)
+        if not queue: return
         pyautogui.moveTo(queue)
         await asyncio.sleep(1)
         pyautogui.click(queue)
         send_discord_log(webhookURL, 'Game is experiencing "Connecting Bug", restarting the queueing system.')
 
+
 async def selectWarzone():
     warzone_button = await wait_for_image(PATHS["warzone"], confidence=0.7)
-    if warzone_button:
-        pyautogui.click(warzone_button)
-        time.sleep(0.5)
-        pyautogui.click(warzone_button)
-        time.sleep(7)
+    if not warzone_button: return
+
+    pyautogui.click(warzone_button)
+    time.sleep(0.5)
+    pyautogui.click(warzone_button)
+    time.sleep(7)
+
 
 async def setPartyInviteOnly():
     press("o")
@@ -173,7 +161,6 @@ async def setPartyInviteOnly():
     pyautogui.click(invite_only)
     await asyncio.sleep(2)
 
-
     press("esc")
     time.sleep(1)
     press("esc")
@@ -183,6 +170,7 @@ async def setPartyInviteOnly():
 async def inviteToParty(webhookURL : str, botId : str | None = None, botIP: str | None = None):
     await asyncio.sleep(2)
     player_select = await wait_for_image(PATHS["player_select"], confidence=0.7)
+    if not player_select: return
 
     x = player_select.left + player_select.width // 2
     y = player_select.top + player_select.height // 2
@@ -192,7 +180,7 @@ async def inviteToParty(webhookURL : str, botId : str | None = None, botIP: str 
 
     await asyncio.sleep(2)
     invite_party = await wait_for_image(PATHS["invite_party"], confidence=0.7)
-    
+    if not invite_party: return
 
     x = invite_party.left + invite_party.width // 2
     y = invite_party.top + invite_party.height // 2
@@ -210,7 +198,8 @@ async def inviteToParty(webhookURL : str, botId : str | None = None, botIP: str 
         requests.post(url, json={"webhookURL": config.webhookURL})
 
     if not botId:
-       await verifyInviteParty(webhookURL)
+        await verifyInviteParty(webhookURL)
+
 
 async def verifyInviteParty(webhookURL: str):
     await asyncio.sleep(2)
@@ -224,39 +213,41 @@ async def verifyInviteParty(webhookURL: str):
             await asyncio.sleep(1)
             press("esc")
 
-            # bots = config.json_config["followers"]
+            bots = config.json_config["followers"]
 
-            # press("o")
+            press("o")
          
-            # for bot in bots:
-            #     await asyncio.sleep(2)
-            #     press("1")  
-            #     type_string(bot["id"])
-            #     search_button = await wait_for_image(PATHS["search_players"], confidence=0.7)
-            #     pyautogui.click(search_button)
-            #     await inviteToParty(webhookURL, bot["id"], bot["ip"])
-            #     press('esc')
+            for bot in bots:
+                await asyncio.sleep(2)
+                press("1")  
+                type_string(bot["id"])
+                search_button = await wait_for_image(PATHS["search_players"], confidence=0.7)
+                if not search_button: return
+                pyautogui.click(search_button)
+                await inviteToParty(webhookURL, bot["id"], bot["ip"])
+                press('esc')
             
-            # press('esc')
+            press('esc')
             press('esc')
 
             queue = await wait_for_image(PATHS["queue"], confidence=0.7, timeout=15)
+            if not queue: return
             pyautogui.moveTo(queue)
             await asyncio.sleep(1)
             pyautogui.click(queue)
             send_discord_log(webhookURL, f"Queuing into {config.mode}. Searching.")
             await asyncio.gather(
-            verifyPreLobby(webhookURL),
-            verifyIfSearching(webhookURL)
+                verifyPreLobby(webhookURL),
+                verifyIfSearching(webhookURL)
             )
             break  
 
         timeout -= 1    
         if timeout <= 0:
             send_discord_log(webhookURL, "Player didn't join party on time. Restarting.")
-            sendError(config.json_config["self_ip"])
-            await reset()
+            await sendError(config.json_config["self_ip"])
             break
+
 
 async def verifyFriend(activisionId: str, webhookURL: str):
     await asyncio.sleep(2)
@@ -268,8 +259,7 @@ async def verifyFriend(activisionId: str, webhookURL: str):
         type_string(activisionId)
 
         search_button = await wait_for_image(PATHS["search_players"], confidence=0.7)
-        if not search_button:
-            break
+        if not search_button: break
 
         pyautogui.click(search_button)
         await asyncio.sleep(5)
@@ -281,7 +271,7 @@ async def verifyFriend(activisionId: str, webhookURL: str):
             timeout -= 30
             if timeout <= 0:
                 send_discord_log(webhookURL, "Invite was not accepted on time, session cancelled.")
-                sendError(config.json_config["self_ip"])
+                await sendError(config.json_config["self_ip"])
                 break
             await asyncio.sleep(30)
             continue
@@ -289,7 +279,6 @@ async def verifyFriend(activisionId: str, webhookURL: str):
         send_discord_log(webhookURL, f"User {activisionId} verified in friend list. Sending party invitation.")
         await inviteToParty(webhookURL)
         break  
-
 
 
 async def inviteFriend(activisionId: str, webhookURL: str):
@@ -318,7 +307,7 @@ async def inviteFriend(activisionId: str, webhookURL: str):
 
     wait_timeout = 5
     while True:
-        success =  await wait_for_image(PATHS["request_sent"], confidence=0.7, timeout=1,dontRestart=True)
+        success = await wait_for_image(PATHS["request_sent"], confidence=0.7, timeout=1,dontRestart=True)
         err = await wait_for_image(PATHS["failed_send"], confidence=0.7, timeout=1,dontRestart=True)
         if success:
             send_discord_log(webhookURL, f"Party Invitiation was sent successfully to player {activisionId}")
@@ -337,38 +326,38 @@ async def inviteFriend(activisionId: str, webhookURL: str):
                 press("o")
                 await verifyFriend(activisionId, webhookURL)
                 break
-            await reset()
             send_discord_log(webhookURL, f"Party Invitiation failed for {activisionId} | **{errorTxt}**, cancelling session.")
-            sendError(config.json_config["self_ip"])
+            await sendError(config.json_config["self_ip"])
             break
 
         wait_timeout -= 0.1
         if wait_timeout <= 0:
-            send_discord_log(webhookURL,  f"Party Invitiation failed for {activisionId}, failure to recognize image. Raise this issue to staff!")
+            send_discord_log(webhookURL, f"Party Invitiation failed for {activisionId}, failure to recognize image. Raise this issue to staff!")
             break
 
 
 async def selectMode(payload: StartRequest):
     battleroyale = await wait_for_image(PATHS["battleroyale"], confidence=0.85)
     resurgence = await wait_for_image(PATHS["resurgence"], confidence=0.85)
+    if not battleroyale or not resurgence: return
 
-    if battleroyale and resurgence:
-        btn = battleroyale if payload.mode == "BattleRoyale" else resurgence
-        pyautogui.click(btn)
-        await asyncio.sleep(1)
-        pyautogui.click(btn)
-        await asyncio.sleep(2.5)
+    btn = battleroyale if payload.mode == "BattleRoyale" else resurgence
+    pyautogui.click(btn)
+    await asyncio.sleep(1)
+    pyautogui.click(btn)
+    await asyncio.sleep(2.5)
 
-        quads = await wait_for_image(PATHS["quads"], confidence=0.9)
-        if quads:
-            pyautogui.click(quads)
-            await asyncio.sleep(1)
-            pyautogui.click(quads)
-            await asyncio.sleep(3)
+    quads = await wait_for_image(PATHS["quads"], confidence=0.9)
+    if not quads: return
+    pyautogui.click(quads)
+    await asyncio.sleep(1)
+    pyautogui.click(quads)
+    await asyncio.sleep(3)
 
-        # await setPartyInviteOnly()
-        await asyncio.sleep(2)
-        await inviteFriend(payload.activision_id, payload.webhookURL)
+    # await setPartyInviteOnly()
+    await asyncio.sleep(2)
+    await inviteFriend(payload.activision_id, payload.webhookURL)
+
 
 async def run_game_flow(payload: StartRequest):
     await asyncio.sleep(5)

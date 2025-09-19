@@ -25,8 +25,7 @@ async def wait_for_image(path, confidence=0.7, timeout=15, dontRestart = False, 
             if not dontRestart:
                 send_discord_log(config.webhookURL, f"Couldn't identify image: {path}, bot restarts...")
                 if not dontReport:
-                    sendError(config.json_config["self_ip"])
-                await reset()
+                    await sendError(config.json_config["self_ip"])
             return None
         await asyncio.sleep(0.5)
 
